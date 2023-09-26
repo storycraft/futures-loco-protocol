@@ -20,7 +20,7 @@ pub struct LocoSession {
 
 impl LocoSession {
     pub fn new<T>(client: LocoClient<T>) -> (Self, LocoSessionStream<T>) {
-        let (sender, receiver) = flume::bounded(1);
+        let (sender, receiver) = flume::bounded(16);
 
         (Self { sender }, LocoSessionStream::new(receiver, client))
     }
