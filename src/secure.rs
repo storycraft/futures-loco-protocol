@@ -158,9 +158,15 @@ impl<T: AsyncWrite> AsyncWrite for LocoSecureStream<T> {
                             }
                         };
 
-                        if this.inner.as_mut().poll_write(cx, slice).is_pending() {
-                            *this.write_state = WriteState::Writing(size);
-                            return Poll::Pending;
+                        match this.inner.as_mut().poll_write(cx, slice)? {
+                            Poll::Ready(written) => {
+                                write_buffer.drain(..written);
+                            }
+
+                            Poll::Pending => {
+                                *this.write_state = WriteState::Writing(size);
+                                return Poll::Pending;
+                            }
                         }
 
                         if write_buffer.is_empty() {
