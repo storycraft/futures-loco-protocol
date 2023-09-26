@@ -1,11 +1,14 @@
 pub mod secure;
 pub mod session;
 
-pub use loco_protocol::command::{BoxedCommand, Command, Header, Method};
+pub use loco_protocol;
 
 use futures_core::Future;
 use futures_io::{AsyncRead, AsyncWrite};
-use loco_protocol::command::client::{LocoSink, LocoStream, StreamState};
+use loco_protocol::command::{
+    client::{LocoSink, LocoStream, StreamState},
+    BoxedCommand, Command, Header, Method,
+};
 use std::{
     future::poll_fn,
     io::{self, ErrorKind},
