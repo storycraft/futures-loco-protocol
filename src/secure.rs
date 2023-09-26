@@ -117,21 +117,21 @@ impl<T: AsyncRead> AsyncRead for LocoSecureStream<T> {
 impl<T: AsyncWrite> AsyncWrite for LocoSecureStream<T> {
     fn poll_write(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        let this = self.project();
+        let mut this = self.project();
 
         loop {
             match mem::replace(this.write_state, WriteState::Corrupted) {
                 WriteState::Initial(key) => {
                     this.layer.handshake(&key);
 
-                    *this.write_state = WriteState::Established;
+                    *this.write_state = WriteState::Pending;
                 }
 
-                WriteState::Established => {
-                    let write_buf = if buf.len() as u64 > Self::MAX_IO_SIZE {
+                WriteState::Pending => {
+                    let data = if buf.len() as u64 > Self::MAX_IO_SIZE {
                         &buf[..Self::MAX_IO_SIZE as usize]
                     } else {
                         buf
@@ -140,13 +140,34 @@ impl<T: AsyncWrite> AsyncWrite for LocoSecureStream<T> {
                     let mut iv = [0_u8; 16];
                     rand::thread_rng().fill_bytes(&mut iv);
 
-                    this.layer.send(SecurePacket {
-                        iv,
-                        data: write_buf.to_vec(),
-                    });
+                    *this.write_state = WriteState::Writing(data.len());
+                    this.layer.send(SecurePacket { iv, data });
+                }
 
-                    *this.write_state = WriteState::Established;
-                    return Poll::Ready(Ok(write_buf.len()));
+                WriteState::Writing(size) => {
+                    let write_buffer = &mut this.layer.write_buffer;
+
+                    loop {
+                        let slice = {
+                            let slices = write_buffer.as_slices();
+
+                            if !slices.0.is_empty() {
+                                slices.0
+                            } else {
+                                slices.1
+                            }
+                        };
+
+                        if this.inner.as_mut().poll_write(cx, slice).is_pending() {
+                            *this.write_state = WriteState::Writing(size);
+                            return Poll::Pending;
+                        }
+
+                        if write_buffer.is_empty() {
+                            *this.write_state = WriteState::Pending;
+                            return Poll::Ready(Ok(size));
+                        }
+                    }
                 }
 
                 WriteState::Corrupted => unreachable!(),
@@ -155,32 +176,7 @@ impl<T: AsyncWrite> AsyncWrite for LocoSecureStream<T> {
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let mut this = self.project();
-
-        while !this.layer.write_buffer.is_empty() {
-            match ready!(this.inner.as_mut().poll_write(cx, {
-                let slices = this.layer.write_buffer.as_slices();
-
-                if !slices.0.is_empty() {
-                    slices.0
-                } else {
-                    slices.1
-                }
-            })) {
-                res @ (Err(_) | Ok(0)) => {
-                    let _ = res?;
-                    break;
-                }
-
-                Ok(written) => {
-                    this.layer.write_buffer.drain(..written);
-                }
-            }
-        }
-
-        ready!(this.inner.poll_flush(cx))?;
-
-        Poll::Ready(Ok(()))
+        self.project().inner.poll_flush(cx)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -199,6 +195,7 @@ enum ReadState {
 #[derive(Debug)]
 enum WriteState {
     Initial(RsaPublicKey),
-    Established,
+    Pending,
+    Writing(usize),
     Corrupted,
 }
