@@ -1,11 +1,11 @@
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     io, mem,
-    pin::{pin, Pin},
+    pin::Pin,
     task::{Context, Poll},
 };
 
-use flume::{Receiver, Sender};
+use flume::{r#async::RecvStream, Receiver, Sender};
 use futures_core::{ready, Future, Stream};
 use futures_io::{AsyncRead, AsyncWrite};
 use loco_protocol::command::Method;
@@ -42,9 +42,10 @@ impl LocoSession {
 }
 
 pin_project_lite::pin_project!(
-    #[derive(Debug)]
     pub struct LocoSessionStream<T> {
-        request_receiver: Receiver<Request>,
+        #[pin]
+        request_stream: RecvStream<'static, Request>,
+
         response_map: IntMap<u32, oneshot::Sender<BoxedCommand>>,
 
         state: SessionState,
@@ -57,7 +58,7 @@ pin_project_lite::pin_project!(
 impl<T> LocoSessionStream<T> {
     fn new(request_receiver: Receiver<Request>, client: LocoClient<T>) -> Self {
         Self {
-            request_receiver,
+            request_stream: request_receiver.into_stream(),
             response_map: IntMap::default(),
 
             state: SessionState::Pending,
@@ -88,8 +89,8 @@ impl<T: AsyncRead + AsyncWrite> Stream for LocoSessionStream<T> {
                     }
 
                     let mut receiver_read = false;
-                    while let Poll::Ready(Ok(request)) =
-                        pin!(this.request_receiver.recv_async()).poll(cx)
+                    while let Poll::Ready(Some(request)) =
+                        this.request_stream.as_mut().poll_next(cx)
                     {
                         let id = this.client.as_mut().write(request.method, &request.data);
                         this.response_map.insert(id, request.response_sender);
