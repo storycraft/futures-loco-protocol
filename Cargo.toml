@@ -1,0 +1,27 @@
+[package]
+name = "futures-loco-protocol"
+version = "0.1.0"
+authors = ["storycraft <storycraft@pancake.sh>"]
+license = "MIT"
+keywords = ["loco", "protocol"]
+readme = "readme.md"
+description = "Asynchronous Loco protocol stream for futures"
+repository = "https://github.com/storycraft/futures-loco-protocol/"
+edition = "2021"
+
+[badges]
+maintenance = { status = "passively-maintained" }
+
+[features]
+wasm = ["loco-protocol/wasm", "getrandom", "getrandom/js"]
+
+[dependencies]
+futures-core = "0.3.28"
+futures-io = "0.3.28"
+loco-protocol = "6.4.0"
+pin-project-lite = "0.2.13"
+rand = "0.8.5"
+getrandom = { version = "0.2.3", optional = true }
+nohash-hasher = "0.2.0"
+flume = "0.11.0"
+oneshot = "0.1.6"
