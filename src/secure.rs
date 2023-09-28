@@ -83,6 +83,11 @@ impl<T: AsyncRead> AsyncRead for LocoSecureStream<T> {
                         *this.read_state = ReadState::Pending;
 
                         let read = ready!(this.inner.as_mut().poll_read(cx, &mut read_buf))?;
+                        if read == 0 {
+                            *this.read_state = ReadState::Done;
+                            continue;
+                        }
+
                         this.layer.read_buffer.extend(&read_buf[..read]);
                     }
                 }
@@ -107,6 +112,8 @@ impl<T: AsyncRead> AsyncRead for LocoSecureStream<T> {
                         "packet is too large",
                     )));
                 }
+
+                ReadState::Done => break Poll::Ready(Err(ErrorKind::UnexpectedEof.into())),
 
                 ReadState::Corrupted => unreachable!(),
             }
@@ -195,6 +202,7 @@ enum ReadState {
     Pending,
     Reading(Cursor<Box<[u8]>>),
     PacketTooLarge,
+    Done,
     Corrupted,
 }
 

@@ -99,7 +99,8 @@ impl<T: AsyncRead> LocoClient<T> {
 
                         let read = ready!(this.inner.as_mut().poll_read(cx, &mut buffer))?;
                         if read == 0 {
-                            break Poll::Ready(Err(ErrorKind::UnexpectedEof.into()));
+                            *this.read_state = ReadState::Done;
+                            continue;
                         }
 
                         this.stream.read_buffer.extend(&buffer[..read]);
@@ -114,6 +115,8 @@ impl<T: AsyncRead> LocoClient<T> {
                         "packet is too large",
                     )));
                 }
+
+                ReadState::Done => break Poll::Ready(Err(ErrorKind::UnexpectedEof.into())),
 
                 ReadState::Corrupted => unreachable!(),
             }
@@ -210,5 +213,6 @@ impl<T: AsyncRead + AsyncWrite + Unpin> LocoClient<T> {
 enum ReadState {
     Pending,
     PacketTooLarge,
+    Done,
     Corrupted,
 }
