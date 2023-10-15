@@ -7,12 +7,12 @@ use std::{
 
 use futures_io::{AsyncRead, AsyncWrite};
 use loco_protocol::secure::{
-    client::{LocoClientSecureLayer, ReadState as LayerReadState},
+    client::{LocoClientSecureLayer, ReadState as LayerReadState, rsa::RsaPublicKey},
     SecurePacket,
 };
 use rand::RngCore;
 
-pub use loco_protocol::secure::client::RsaPublicKey;
+pub use loco_protocol::secure::client::rsa;
 
 pin_project_lite::pin_project! {
     #[derive(Debug)]

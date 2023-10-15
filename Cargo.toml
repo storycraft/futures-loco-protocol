@@ -1,6 +1,6 @@
 [package]
 name = "futures-loco-protocol"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["storycraft <storycraft@pancake.sh>"]
 license = "MIT"
 keywords = ["loco", "protocol", "futures"]
@@ -18,7 +18,7 @@ wasm = ["loco-protocol/wasm", "getrandom", "getrandom/js"]
 [dependencies]
 futures-core = "0.3.28"
 futures-io = "0.3.28"
-loco-protocol = "6.4.0"
+loco-protocol = "6.5.0"
 pin-project-lite = "0.2.13"
 rand = "0.8.5"
 getrandom = { version = "0.2.3", optional = true }
